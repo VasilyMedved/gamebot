@@ -24,11 +24,13 @@ def locate_target(screenshot, target_bitmap):
 	#
 	res = cv2.matchTemplate(screenshot,target_bitmap, cv2.TM_CCOEFF_NORMED)
 	min_val,max_val,min_loc,max_loc = cv2.minMaxLoc(res)
-	if max_val > 0.8:
-		targetX = max_loc[0] + (w // 2)
-		targetY = max_loc[1] + (h // 2)
+	print('Probabiluty:',max_val)
+	if max_val > 0.9:
+		targetX = max_loc[0]
+		targetY = max_loc[1]
 		matchX = targetX - centerX
 		matchY = targetY - centerY
+		print(f'TargetXY:{targetX}:{targetY}, MatchXY:{matchX}:{matchY}')
 		return (matchX, matchY)
 	else:
 		#return zero relative coordinates if nothing found
@@ -66,8 +68,9 @@ def take_screenshot(name):
 	'''
 
 def move_mouse(target):
-	print('Log - Mouse should move to '+ str(target))
-	pyautogui.moveRel(target[0],target[1],3)
+	print('Log - Mouse should move to '+ str(target) + 'relative to center of screen')
+	#wpyautogui.moveTo(960,540)
+	pyautogui.moveRel(target[0],target[1],1)
 
 class Bot:
 	def forward():
@@ -100,15 +103,13 @@ move_mouse(target)
 time.sleep(2)
 while True:
 	pyautogui.keyDown('f')
-	time.sleep(1)
+	time.sleep(0.5)
 	screenshot = take_screenshot('current.png')
 	template = 'target.png'
 	target = locate_target(screenshot,template)
-	stamp = take_screenshot(f'{target}_screen.png')
-	print(target)
-	move_mouse(target)
-	pyautogui.keyDown('w')
-	time.sleep(2)
-	pyautogui.keyUp('w')
 	pyautogui.keyUp('f')
-	time.sleep(0.5)
+	#stamp = take_screenshot(f'{target}_screen.png')
+	move_mouse(target)
+	pyautogui.keyDown('w',5)
+	#time.sleep(5)
+	pyautogui.keyUp('w')
