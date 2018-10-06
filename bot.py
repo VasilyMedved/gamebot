@@ -1,43 +1,39 @@
 # Imports 
-import cv2 as cv2
+import cv2
 import numpy as np 
 # from matplotlib import pyplot as plt
 import pyautogui as pag
 import time
-import timeit
 
 
 # Helpers
-
-def match(screenshot, template):
+def match (template, threshold):
 	'''
 	Purpose: searches if particular targetImg is presented on sourceImg using OpenCV template matching 
 	https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_template_matching/py_template_matching.html#template-matching
 	https://stackoverflow.com/questions/9709631/how-do-i-use-opencv-matchtemplate
 	'''
-	#read screenshots
-	screenshot = cv2.imread(screenshot)
-	template = cv2.imread(template)
+	#setup
+	global screen
+	method = cv2.TM_CCOEFF_NORMED
 
-	# obtain center of template and center of screenshot
-	w, h = template.shape[0],template.shape[1]
-	centerY = screenshot.shape[0] // 2
-	centerX = screenshot.shape[1] // 2
-	
-	# magic here
-	res = cv2.matchTemplate(screenshot,template, cv2.TM_CCOEFF_NORMED)
+	#read screenshots
+	image = pag.screenshot()
+	screenshot = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+	template = cv2.imread(template)
+	match = ()
+	# obtain center of template 
+	template_center = (template.shape[0] // 2, template.shape[1] // 2)	
+	# actual image recognition
+	res = cv2.matchTemplate(screenshot, template, method)
 	min_val,max_val,min_loc,max_loc = cv2.minMaxLoc(res)
-	print('Match rate:',round(max_val,2))
-	if max_val > 0.9:
-		targetX = max_loc[0]
-		targetY = max_loc[1]
-		matchX = targetX - centerX
-		matchY = targetY - centerY
-		print(f'TargetXY:{targetX}:{targetY}, MatchXY:{matchX}:{matchY}')
-		return (matchX, matchY)
+	if max_val > threshold:
+		# match is coordinates of precise center of matching template
+		match = ((max_loc[0] + template_center[0]) - screen['center_x'],
+				((max_loc[1] + template_center[1]) - screen['center_y']))
+		return match 
 	else:
-		#return zero relative coordinates if not matched
-		return (0,0)
+		return None
 
 
 def compare_frames(imgOne, imgTwo):
@@ -61,19 +57,10 @@ def compare_frames(imgOne, imgTwo):
 	return round(persentage,2)
 
 
-def take_screenshot(name):
-	img = pag.screenshot()
-	img.save(name)
-	return name
-	'''
-	takes screenshots
-	saves screenshot with a given name on disk
-	'''
-
 class Bot:
-	def move_mouse(target):
+	def move_mouse(target,duration = 0.5):
 		print('Mouse moves to '+ str(target) + 'relative to center')
-		pag.moveRel(target[0],target[1],1)
+		pag.moveRel(target[0],target[1],duration)
 
 	def interact():
 		pag.keyDown('e')
@@ -112,42 +99,50 @@ class Bot:
 			pag.keyDown('f')
 		else:
 			pag.keyUp('f')
-
+		
 # print(compare_frames('current.png','current+1.png'))
 
-# Main loop
+# setup
 pag.FAILSAFE = False
+screen = {
+'w' : pag.size()[0],
+'h' : pag.size()[1],
+'center_x' : pag.size()[0] // 2,
+'center_y' : pag.size()[1] // 2}
+
+print(screen)
 templates = {
 	'stone':'stone.png',
 	'e_bar':'e_bar.png',
 	'low_health':'low_health.png',
 	'resource':'resource.png'
 }
+# Main loop
 bot = Bot
-i = 0
-while True:
-	
+while True:	
 	# Search stone routine
 	# enable scaner mode and look for match
 	bot.scanner('on') 
-	screenshot = take_screenshot('current.png')
-	target = match(screenshot,templates['stone'])
-	bot.move_mouse(target)
-	if target == (0,0) and i < 10:
+	target = match(templates['stone'],0.9)
+	if target == None:
 		print('target not found, must search')
-		bot.move_mouse([-320,0])
-		i += 1
-	else:
-		i = 0
-		bot.scanner('off')
-		bot.forward(3)
-		screenshot = take_screenshot('current.png')
-		target = match(screenshot, templates['e_bar'])
-		if target != (0,0):
+		bot.move_mouse([-(screen['w']//10),0],0.2)
+	else: 
+		print ('target:',target)
+		bot.move_mouse(target,0.9)
+		bot.forward(1)
+		#look for e_bar which indicates that stone found
+		bot.scanner('off')		
+		target = match(templates['e_bar'],0.8)
+		if target != None:
 			bot.interact()
 			bot.jump()
+		else:
+			bot.forward(0.5)
+			
+			#if bot.stuck_check() < 80:
+			#	bot.jump()
 	# if match found mouse moved to it
-	#look for e_bar which indicates that stone found
 	'''
 		time.wait(2)
 		print('Now try to interact')
@@ -158,11 +153,6 @@ while True:
 	#stamp = take_screenshot(f'{target}_screen.png')
 	'''
 	bot.forward(5)
-	screenshot = take_screenshot('current.png')
-	bot.forward(1)
-	screenshot1 = take_screenshot('current+1.png')
-	not_stuck = compare_frames(screenshot,screenshot1)
-	print('stuck posibility:',not_stuck)
 	if not_stuck < 80:
 		bot.jump()
 	'''
